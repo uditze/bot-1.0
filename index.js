@@ -62,9 +62,13 @@ app.post("/chat", async (req, res) => {
 
 const path = require("path");
 
+// שורה חדשה שמאפשרת לשרת קבצים סטטיים מהתיקייה הנוכחית
+app.use(express.static(__dirname));
+
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
