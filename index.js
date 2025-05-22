@@ -79,7 +79,7 @@ app.get("/dashboard", async (req, res) => {
   const { data, error } = await supabase
     .from("conversations")
     .select("*")
-    .order("timestamp", { ascending: false });
+    .order("created_at", { ascending: false });
 
  if (error) {
   console.error("שגיאת Supabase:", error);
