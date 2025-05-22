@@ -66,6 +66,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.listen(3000, () => {
-  console.log("הבוט רץ על http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`הבוט רץ על פורט ${PORT}`);
 });
