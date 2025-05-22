@@ -90,7 +90,7 @@ app.get("/dashboard", async (req, res) => {
   <h2>דשבורד שיחות</h2><table border="1" cellpadding="5">
   <tr><th>תאריך</th><th>שאלה</th><th>תשובה</th></tr>`;
   for (let row of data) {
-    html += `<tr><td>${new Date(row.timestamp).toLocaleString()}</td><td>${row.user_input}</td><td>${row.bot_reply}</td></tr>`;
+html += `<tr><td>${new Date(row.created_at).toLocaleString()}</td><td>${row.user_input}</td><td>${row.bot_reply}</td></tr>`;
   }
   html += "</table></body></html>";
   res.send(html);
