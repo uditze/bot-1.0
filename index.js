@@ -1,103 +1,50 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const axios = require("axios");
+// load_paragraphs.js
+const fs = require("fs");
+const pdfParse = require("pdf-parse");
 const { createClient } = require("@supabase/supabase-js");
-require("dotenv").config();
-const path = require("path");
+const OpenAI = require("openai");
+const dotenv = require("dotenv");
 
-const app = express();
-app.use(bodyParser.json());
-app.use(express.static(__dirname));
+dotenv.config();
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 
-app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const messages = [
-    {
-      role: "system",
-      content: `
-אתה מייצג עמדה הפוכה ב-180 מעלות לכל רעיון או תיאור שמציג מולך אדם לגבי "אזרחות טובה".
-מטרתך לעורר חשיבה ביקורתית ולהמחיש ש"אזרחות טובה" היא מושג שנוי במחלוקת.
-אם מישהו מתאר מעשה אזרחי שכולל התנגדות למוסדות המדינה, אתה תדגיש את חשיבות הציות והנאמנות.
-אם מישהו מדבר על מחויבות אוניברסלית או פלורליזם, אתה תדגיש את חשיבות הזהות הלאומית והקולקטיב.
-אל תעליב, אבל תהיה ישיר, מנומק ועקבי.
-לאחר הצגת העמדה הנגדית, שאל שאלה פתוחה שמעודדת רפלקציה.
+async function extractParagraphsFromPDF(filePath, sourceLabel) {
+  const dataBuffer = fs.readFileSync(filePath);
+  const pdfData = await pdfParse(dataBuffer);
+  const rawText = pdfData.text;
+  const paragraphs = rawText
+    .split(/\n{2,}/)
+    .map(p => p.trim())
+    .filter(p => p.length > 100 && p.length < 1500);
+  return paragraphs.map(p => ({ text: p, source: sourceLabel }));
+}
 
-בשלב שני, עבור לשאלות חינוכיות על איך לחנך תלמידים לאזרחות טובה.
-הצג גישות שונות (ליברלית, פטריוטית, רב־תרבותית, ביקורתית) תוך מתן עמדה נגדית, ושאלות מאתגרות.
-בסוף, הזמן את המשתמש לרפלקציה אישית בכתב, עם שאלות מנחות.
+async function generateEmbeddingsAndUpload(paragraphs) {
+  for (const paragraph of paragraphs) {
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: paragraph.text,
+    });
+    const [{ embedding }] = embeddingResponse.data;
 
-פתח תמיד את השיחה בשאלה:
-"תאר/י לי מעשה אזרחי שעשית, שלדעתך מבטא אזרחות טובה."
-      `,
-    },
-    {
-      role: "user",
-      content: userMessage,
-    },
-  ];
-
-  try {
-    const response = await axios.post(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        model: "gpt-3.5-turbo",
-        messages: messages,
-        temperature: 0.8,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
-        },
-      },
-    );
-
-    const reply = response.data.choices[0].message.content;
-
-    await supabase.from("conversations").insert([
-      { user_input: userMessage, bot_reply: reply }
-    ]);
-
-    res.json({ reply });
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).send("שגיאה בשיחה עם GPT");
+    await supabase.from("paragraphs").insert({
+      text: paragraph.text,
+      source: paragraph.source,
+      embedding,
+    });
+    console.log("Uploaded:", paragraph.text.slice(0, 60));
   }
-});
+}
 
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-app.get("/dashboard", async (req, res) => {
-  const { data, error } = await supabase
-    .from("conversations")
-    .select("*")
-    .order("created_at", { ascending: false });
-
- if (error) {
-  console.error("שגיאת Supabase:", error);
-  return res.status(500).send("שגיאה בשליפת נתונים: " + JSON.stringify(error));
-
-  }
-
-  let html = `
-  <html><head><meta charset="utf-8"><title>דשבורד</title></head><body dir="rtl">
-  <h2>דשבורד שיחות</h2><table border="1" cellpadding="5">
-  <tr><th>תאריך</th><th>שאלה</th><th>תשובה</th></tr>`;
-  for (let row of data) {
-html += `<tr><td>${new Date(row.created_at).toLocaleString()}</td><td>${row.user_input}</td><td>${row.bot_reply}</td></tr>`;
-  }
-  html += "</table></body></html>";
-  res.send(html);
-});
-
-app.listen(3000, () => {
-  console.log("הבוט רץ על http://localhost:3000");
-});
+(async () => {
+  const p1 = await extractParagraphsFromPDF("./aviv cohen.pdf", "Aviv Cohen");
+  const p2 = await extractParagraphsFromPDF("./adar cohen.pdf", "Aviv & Adar Cohen");
+  const all = [...p1, ...p2];
+  await generateEmbeddingsAndUpload(all);
+})();
