@@ -81,8 +81,10 @@ app.get("/dashboard", async (req, res) => {
     .select("*")
     .order("timestamp", { ascending: false });
 
-  if (error) {
-    return res.status(500).send("שגיאה בשליפת נתונים");
+ if (error) {
+  console.error("שגיאת Supabase:", error);
+  return res.status(500).send("שגיאה בשליפת נתונים: " + JSON.stringify(error));
+
   }
 
   let html = `
