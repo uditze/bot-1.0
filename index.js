@@ -1,12 +1,18 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const { createClient } = require("@supabase/supabase-js");
 require("dotenv").config();
+const path = require("path");
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.static(__dirname));
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
@@ -42,7 +48,7 @@ app.post("/chat", async (req, res) => {
       {
         model: "gpt-3.5-turbo",
         messages: messages,
-        temperature: 0.8, // אפשר לשנות לפי הצורך
+        temperature: 0.8,
       },
       {
         headers: {
@@ -53,6 +59,11 @@ app.post("/chat", async (req, res) => {
     );
 
     const reply = response.data.choices[0].message.content;
+
+    await supabase.from("conversations").insert([
+      { user_input: userMessage, bot_reply: reply }
+    ]);
+
     res.json({ reply });
   } catch (err) {
     console.error(err.response?.data || err.message);
@@ -60,17 +71,31 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-const path = require("path");
-
-// שורה חדשה שמאפשרת לשרת קבצים סטטיים מהתיקייה הנוכחית
-app.use(express.static(__dirname));
-
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+app.get("/dashboard", async (req, res) => {
+  const { data, error } = await supabase
+    .from("conversations")
+    .select("*")
+    .order("timestamp", { ascending: false });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`הבוט רץ על פורט ${PORT}`);
+  if (error) {
+    return res.status(500).send("שגיאה בשליפת נתונים");
+  }
+
+  let html = `
+  <html><head><meta charset="utf-8"><title>דשבורד</title></head><body dir="rtl">
+  <h2>דשבורד שיחות</h2><table border="1" cellpadding="5">
+  <tr><th>תאריך</th><th>שאלה</th><th>תשובה</th></tr>`;
+  for (let row of data) {
+    html += `<tr><td>${new Date(row.timestamp).toLocaleString()}</td><td>${row.user_input}</td><td>${row.bot_reply}</td></tr>`;
+  }
+  html += "</table></body></html>";
+  res.send(html);
+});
+
+app.listen(3000, () => {
+  console.log("הבוט רץ על http://localhost:3000");
 });
