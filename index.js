@@ -1,3 +1,4 @@
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -60,7 +61,7 @@ app.post("/chat", async (req, res) => {
       question: userMessage,
       answer,
       retrieved_chunks: chunks,
-      timestamp: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     });
 
     res.send({ answer });
@@ -83,7 +84,7 @@ app.get("/dashboard", async (req, res) => {
     html += `<div style='border:1px solid #ccc;padding:10px;margin:10px;'>
       <strong>שאלה:</strong> ${convo.question}<br/>
       <strong>תשובה:</strong> ${convo.answer}<br/>
-      <small>${new Date(convo.timestamp).toLocaleString()}</small>
+      <small>${new Date(convo.created_at).toLocaleString()}</small>
     </div>`;
   }
   html += `</body></html>`;
