@@ -73,8 +73,8 @@ app.post("/chat", async (req, res) => {
 app.get("/dashboard", async (req, res) => {
   const { data, error } = await supabase
     .from("conversations")
-    .select("id, question, answer, timestamp")
-    .order("timestamp", { ascending: false });
+    .select("id, question, answer, created_at")
+    .order("created_at", { ascending: false });
 
   if (error) return res.status(500).send("Failed to fetch");
 
